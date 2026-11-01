@@ -16,6 +16,7 @@ import type { ToolSession } from "../sdk";
 import type { SessionEntry } from "../session/session-entries";
 
 import { normalizePathLikeInput, resolveToCwd } from "./path-utils";
+import { cfgTodoCompactResults } from "./settings";
 
 /** Whether an unknown value is a persisted todo phase. */
 export function isTodoPhase(value: unknown): value is TodoPhase {
@@ -706,6 +707,82 @@ function formatSummary(phases: TodoPhase[], errors: string[], readOnly = false):
 	return lines.join("\n");
 }
 
+/** Upper bound on per-item change lines in a compact summary; the rest collapse into a count. */
+const COMPACT_MAX_CHANGE_LINES = 12;
+
+/**
+ * Compact result for a mutating `todo` call (`todo.compactResults`): the items
+ * this call changed, the open count, and the next open task. The full tree
+ * `formatSummary` prints is already in the model's context from the `init`
+ * that created it, so repeating every remaining item on each `done`/`start` only
+ * costs prefill. `view` keeps the full summary, so the list is one call away.
+ */
+export function formatCompactSummary(previous: TodoPhase[], current: TodoPhase[], errors: string[]): string {
+	const lines: string[] = [];
+	if (errors.length > 0) lines.push(`Errors: ${errors.join("; ")}`);
+
+	const tasks = current.flatMap(phase => phase.tasks);
+	const previousTasks = previous.flatMap(phase => phase.tasks);
+	const previousByKey = new Map<string, TodoItem>();
+	for (const phase of previous) {
+		for (const task of phase.tasks) previousByKey.set(todoTransitionKey(phase.name, task.content), task);
+	}
+	const currentKeys = new Set<string>();
+	const changes: string[] = [];
+	for (const phase of current) {
+		for (const task of phase.tasks) {
+			const key = todoTransitionKey(phase.name, task.content);
+			currentKeys.add(key);
+			const before = previousByKey.get(key);
+			if (!before) {
+				changes.push(`  + ${task.content} [${task.status}] (${phase.name})`);
+			} else if (before.status !== task.status || before.blocker !== task.blocker) {
+				const blocker = task.status === "blocked" && task.blocker ? ` (blocked: ${task.blocker})` : "";
+				changes.push(`  ${task.content}: ${before.status} → ${task.status}${blocker}`);
+			}
+		}
+	}
+	for (const phase of previous) {
+		for (const task of phase.tasks) {
+			if (!currentKeys.has(todoTransitionKey(phase.name, task.content))) {
+				changes.push(`  - ${task.content} removed (${phase.name})`);
+			}
+		}
+	}
+
+	if (previousTasks.length === 0 && tasks.length > 0) {
+		// A fresh list: the model just authored every item, so echo counts only.
+		lines.push(
+			`Initialized ${tasks.length} task${tasks.length === 1 ? "" : "s"} in ${current.length} phase${current.length === 1 ? "" : "s"}.`,
+		);
+	} else if (changes.length === 0) {
+		lines.push("Changed: none.");
+	} else {
+		lines.push(`Changed (${changes.length}):`);
+		lines.push(...changes.slice(0, COMPACT_MAX_CHANGE_LINES));
+		if (changes.length > COMPACT_MAX_CHANGE_LINES) {
+			lines.push(`  … and ${changes.length - COMPACT_MAX_CHANGE_LINES} more`);
+		}
+	}
+
+	if (tasks.length === 0) {
+		lines.push(errors.length > 0 ? "Todo list is empty." : "Todo list cleared.");
+		return lines.join("\n");
+	}
+	const open = tasks.filter(task => task.status === "pending" || task.status === "in_progress").length;
+	const blocked = tasks.filter(task => task.status === "blocked").length;
+	const next = nextActionableTask(current);
+	const nextPhase = next ? current.find(phase => phase.tasks.includes(next))?.name : undefined;
+	let status = `Open: ${open} of ${tasks.length}${blocked > 0 ? `, ${blocked} blocked` : ""}.`;
+	if (next) {
+		status += ` Next: ${next.content} [${next.status}]${nextPhase ? ` (${nextPhase})` : ""}.`;
+	} else if (open === 0) {
+		status += blocked > 0 ? " No actionable task; unblock to continue." : " All tasks closed.";
+	}
+	lines.push(status);
+	return lines.join("\n");
+}
+
 // =============================================================================
 // Tool Class
 // =============================================================================
@@ -762,8 +839,14 @@ export class TodoTool implements AgentTool<typeof todoSchema, TodoToolDetails> {
 		const details: TodoToolDetails = { op, phases: effective, storage };
 		if (completedTasks.length > 0) details.completedTasks = completedTasks;
 
+		// `view` always returns the full list; compact mode shrinks only mutations.
+		const compact = !readOnly && cfgTodoCompactResults.get(this.session.settings);
+		const text = compact
+			? formatCompactSummary(previousPhases, effective, errors)
+			: formatSummary(effective, errors, readOnly);
+
 		return {
-			content: [{ type: "text", text: formatSummary(effective, errors, readOnly) }],
+			content: [{ type: "text", text }],
 			details,
 			isError: errors.length > 0 ? true : undefined,
 		};

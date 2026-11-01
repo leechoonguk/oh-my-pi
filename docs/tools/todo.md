@@ -45,7 +45,7 @@ The params object **is** a single op — the discriminator and its fields live a
 
 The tool returns a single-shot `AgentToolResult`:
 
-- `content`: one text part containing the summary from `formatSummary(...)`.
+- `content`: one text part containing the summary from `formatSummary(...)`, or — with `todo.compactResults: true` (default `false`) — the compact form from `formatCompactSummary(...)` for every mutating op: the items this call changed (`+ added`, `- removed`, `content: before → after`, capped at 12 lines), the open/blocked count, and the next open task. `view` always returns the full summary.
    - Empty final state with no errors: `Todo list cleared.` (`Todo list is empty.` for a pure-`view` call).
    - Non-empty final state: remaining-item list, current phase progress, then a per-phase tree.
    - Op-specific errors prefix the summary with `Errors: ...`; schema failures instead return `Invalid todo arguments: ...`. Both set `isError: true` and leave returned/persisted phases at their pre-call state.

@@ -416,6 +416,19 @@ export const cfgTodoRemindersMax = register({
 	},
 });
 
+export const cfgTodoCompactResults = register({
+	id: "todo.compactResults",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "tools",
+		group: "Todos",
+		label: "Compact Todo Results",
+		description:
+			"Return only the changed items, the open count, and the next open task from a mutating todo call; `view` still returns the whole list",
+	},
+});
+
 export const cfgTodoEager = register({
 	id: "todo.eager",
 	type: "enum",
