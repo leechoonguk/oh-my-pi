@@ -386,7 +386,7 @@ export async function executeJsonQuery(
 export interface ResolvedJsonReadPath {
 	absolutePath: string;
 	selector: JsonSelector;
-	suffixResolution?: { from: string; to: string };
+	suffixResolution?: { from: string; to: string; via?: string };
 }
 
 /** An already-bounded virtual text resource, queried locally without exposing scratch paths. */
@@ -441,7 +441,7 @@ export async function resolveJsonReadPath(
 	return {
 		absolutePath: suffixMatch.absolutePath,
 		selector,
-		suffixResolution: { from: target.jsonPath, to: suffixMatch.displayPath },
+		suffixResolution: { from: target.jsonPath, to: suffixMatch.displayPath, via: suffixMatch.via },
 	};
 }
 

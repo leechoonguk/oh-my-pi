@@ -176,6 +176,19 @@ export const cfgReadDefaultLimit = register({
 	},
 });
 
+export const cfgToolsRecoverPathVariants = register({
+	id: "tools.recoverPathVariants",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "files",
+		group: "Reading",
+		label: "Recover Path Variants",
+		description:
+			"When a read/glob/edit path does not exist, try the dot-directory spelling (`omp/x` → `.omp/x`) and the path without a repeated cwd prefix (`sandbox/x` from inside `sandbox/`); used only when exactly one variant exists, and announced in the result",
+	},
+});
+
 export const cfgReadRenderMarkdown = register({
 	id: "read.renderMarkdown",
 	type: "boolean",

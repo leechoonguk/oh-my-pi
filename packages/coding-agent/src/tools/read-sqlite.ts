@@ -49,7 +49,7 @@ export async function resolveSqliteReadPath(
 	const candidates = parseSqlitePathCandidates(readPath);
 	for (const candidate of candidates) {
 		let absolutePath = resolveReadPath(candidate.sqlitePath, session.cwd);
-		let suffixResolution: { from: string; to: string } | undefined;
+		let suffixResolution: { from: string; to: string; via?: string } | undefined;
 
 		try {
 			const stat = await Bun.file(absolutePath).stat();
@@ -75,7 +75,7 @@ export async function resolveSqliteReadPath(
 				if (!(await isSqliteFile(suffixMatch.absolutePath))) continue;
 
 				absolutePath = suffixMatch.absolutePath;
-				suffixResolution = { from: candidate.sqlitePath, to: suffixMatch.displayPath };
+				suffixResolution = { from: candidate.sqlitePath, to: suffixMatch.displayPath, via: suffixMatch.via };
 				return {
 					absolutePath,
 					sqliteSubPath: candidate.subPath,

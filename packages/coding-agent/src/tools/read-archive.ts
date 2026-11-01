@@ -116,7 +116,7 @@ export async function resolveArchiveReadPath(
 	const candidates = parseArchivePathCandidates(readPath);
 	for (const candidate of candidates) {
 		let absolutePath = resolveReadPath(candidate.archivePath, session.cwd);
-		let suffixResolution: { from: string; to: string } | undefined;
+		let suffixResolution: { from: string; to: string; via?: string } | undefined;
 
 		try {
 			const stat = await Bun.file(absolutePath).stat();
@@ -137,7 +137,7 @@ export async function resolveArchiveReadPath(
 				if (retryStat.isDirectory()) continue;
 
 				absolutePath = suffixMatch.absolutePath;
-				suffixResolution = { from: candidate.archivePath, to: suffixMatch.displayPath };
+				suffixResolution = { from: candidate.archivePath, to: suffixMatch.displayPath, via: suffixMatch.via };
 				return {
 					absolutePath,
 					archiveSubPath: candidate.archivePath === readPath ? "" : candidate.subPath,

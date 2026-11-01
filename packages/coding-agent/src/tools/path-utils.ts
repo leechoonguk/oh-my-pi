@@ -1367,6 +1367,77 @@ async function findUniqueWorkspaceSuffixWithGlob(
 	};
 }
 
+/** A missing authored path re-spelled to an existing one by {@link findPathVariant}. */
+export interface PathVariantMatch {
+	absolutePath: string;
+	displayPath: string;
+	/** Human-readable name of the rewrite, for the result notice. */
+	via: string;
+}
+
+/** Glob metacharacters: a pattern is never a single file to re-spell. */
+const GLOB_META_RE = /[*?[\]{}]/;
+
+/**
+ * Re-spell a missing authored path into the lexical variants local models
+ * routinely produce for a workspace that lives under a dot directory:
+ *  - the dot-directory spelling of the first segment (`omp/x` → `.omp/x`);
+ *  - the path without a repeated cwd basename (`sandbox/x` → `x` when the
+ *    cwd is already `…/sandbox`), and the dot spelling of that.
+ * Absolute paths under the cwd are handled through their cwd-relative form.
+ *
+ * Returns the match only when exactly one candidate exists, so a file is never
+ * invented and an ambiguous spelling still surfaces as "not found".
+ */
+export async function findPathVariant(
+	rawPath: string,
+	cwd: string,
+	statImpl: (target: string) => Promise<unknown> = target => fs.promises.stat(target),
+): Promise<PathVariantMatch | null> {
+	if (!rawPath || extractUriScheme(rawPath) !== undefined || GLOB_META_RE.test(rawPath)) return null;
+	const normalized = normalizePathSeparators(expandPath(rawPath)).replace(/^\.\//, "").replace(/\/+$/, "");
+	if (!normalized) return null;
+
+	let relative: string;
+	if (path.isAbsolute(normalized)) {
+		const rel = path.relative(cwd, normalized);
+		if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+		relative = normalizePathSeparators(rel);
+	} else {
+		relative = normalized;
+	}
+	const segments = relative.split("/").filter(segment => segment.length > 0);
+	if (segments.length === 0 || segments.includes("..")) return null;
+
+	const candidates = new Map<string, string>();
+	const dotted = (parts: string[]): string[] | null =>
+		parts[0].startsWith(".") ? null : [`.${parts[0]}`, ...parts.slice(1)];
+	const add = (parts: string[] | null, via: string): void => {
+		if (!parts || parts.length === 0) return;
+		const candidate = parts.join("/");
+		if (candidate !== relative && !candidates.has(candidate)) candidates.set(candidate, via);
+	};
+	add(dotted(segments), "dot-directory spelling");
+	if (segments.length > 1 && segments[0] === path.basename(cwd)) {
+		const stripped = segments.slice(1);
+		add(stripped, "repeated cwd prefix");
+		add(dotted(stripped), "repeated cwd prefix + dot-directory spelling");
+	}
+	if (candidates.size === 0) return null;
+
+	const existing: PathVariantMatch[] = [];
+	for (const [candidate, via] of candidates) {
+		const absolutePath = path.resolve(cwd, candidate);
+		try {
+			await statImpl(absolutePath);
+			existing.push({ absolutePath, displayPath: candidate, via });
+		} catch {
+			// Missing variant: not a candidate.
+		}
+	}
+	return existing.length === 1 ? existing[0] : null;
+}
+
 /**
  * Find a unique workspace entry whose trailing path matches a missing authored path.
  * Returns `null` for no match, ambiguity, timeout, or scan failure.

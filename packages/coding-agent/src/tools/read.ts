@@ -1318,7 +1318,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		absolutePath: string,
 		sel: string | undefined,
 		fileSize: number,
-		suffixResolution: { from: string; to: string } | undefined,
+		suffixResolution: { from: string; to: string; via?: string } | undefined,
 		question: string | undefined,
 		signal?: AbortSignal,
 	): Promise<AgentToolResult<ReadToolDetails>> {
@@ -1552,7 +1552,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		buffered: BufferedFileText | undefined,
 		parsed: ParsedSelector,
 		displayMode: { hashLines: boolean; lineNumbers: boolean },
-		suffixResolution: { from: string; to: string } | undefined,
+		suffixResolution: { from: string; to: string; via?: string } | undefined,
 		signal: AbortSignal | undefined,
 		allowBridge = true,
 	): Promise<{
@@ -2028,7 +2028,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				: parseSel(localTarget.sel);
 
 		let absolutePath = await resolveReadPathAsync(localReadPath, this.session.cwd);
-		let suffixResolution: { from: string; to: string } | undefined;
+		let suffixResolution: { from: string; to: string; via?: string } | undefined;
 
 		let isDirectory = false;
 		let fileSize = 0;
@@ -2062,7 +2062,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 							fileSize = retryStat.size;
 							isDirectory = retryStat.isDirectory();
 							specialKind = specialFileKind(retryStat);
-							suffixResolution = { from: localReadPath, to: suffixMatch.displayPath };
+							suffixResolution = { from: localReadPath, to: suffixMatch.displayPath, via: suffixMatch.via };
 						} catch {
 							// Suffix match candidate no longer stats — continue through
 							// approved-plan recovery and the original not-found error.
@@ -2931,7 +2931,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 	 */
 	async #readFileConflicts(
 		absolutePath: string,
-		suffixResolution: { from: string; to: string } | undefined,
+		suffixResolution: { from: string; to: string; via?: string } | undefined,
 		signal: AbortSignal | undefined,
 	): Promise<AgentToolResult<ReadToolDetails>> {
 		throwIfAborted(signal);

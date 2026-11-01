@@ -16,6 +16,7 @@ import { isFindEnabled } from "./jfind";
 import { applyListLimit } from "@oh-my-pi/pi-tui/tools/list-limit";
 import {
 	expandDelimitedPathEntries,
+	findPathVariant,
 	formatPathRelativeToCwd,
 	normalizePathLikeInput,
 	parseFindPattern,
@@ -25,6 +26,7 @@ import {
 	resolveSearchResultPath,
 	searchPathTier,
 } from "./path-utils";
+import { cfgToolsRecoverPathVariants } from "./settings";
 import { searchApprovalCacheTargets } from "./search-approval-targets";
 import { toPathList } from "@oh-my-pi/pi-tui/render/render-utils";
 import { ToolAbortError, throwIfAborted } from "./tool-errors";
@@ -252,6 +254,34 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 				missingPaths = partition.missing;
 			}
 
+			// A single non-glob path that does not exist: try its lexical variants
+			// (`omp/x` → `.omp/x`, repeated cwd prefix) before the walk reports it
+			// missing. Opt-in (`tools.recoverPathVariants`); announced in the result.
+			let variantNotice: string | undefined;
+			if (
+				effectivePatterns.length === 1 &&
+				!this.#customOps &&
+				cfgToolsRecoverPathVariants.get(this.session.settings)
+			) {
+				const single = parseFindPattern(effectivePatterns[0]);
+				if (!single.hasGlob && !internalRouter.canHandle(single.basePath)) {
+					const exists = await this.#stat(resolveSearchBase(single.basePath, this.session.cwd)).then(
+						() => true,
+						(error: unknown) => {
+							if (isEnoent(error) || hasFsCode(error, "ENOTDIR")) return false;
+							throw error;
+						},
+					);
+					if (!exists) {
+						const variant = await findPathVariant(single.basePath, this.session.cwd, this.#stat);
+						if (variant) {
+							effectivePatterns = [variant.displayPath];
+							variantNotice = `[Path '${single.basePath}' not found; resolved to '${variant.displayPath}' via ${variant.via}]`;
+						}
+					}
+				}
+			}
+
 			const multiPattern = await resolveExplicitFindPatterns(effectivePatterns, this.session.cwd);
 			const isSingle = !multiPattern;
 			const targets: GlobTarget[] = multiPattern
@@ -326,6 +356,7 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 					// absence — never emit the definitive "No files found" claim next
 					// to a timeout notice (the two statements contradict each other).
 					const parts = opts?.timedOut ? [] : ["No files found matching pattern"];
+					if (variantNotice) parts.unshift(variantNotice);
 					if (notice) parts.push(notice);
 					if (missingPathsNote) parts.push(missingPathsNote);
 					// Zero results is useless regardless of notices: the follow-up
@@ -336,7 +367,8 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 				const listLimit = applyListLimit(files, { limit: effectiveLimit });
 				const limited = listLimit.items;
 				const limitMeta = listLimit.meta;
-				const baseOutput = formatGroupedPaths(limited);
+				const groupedOutput = formatGroupedPaths(limited);
+				const baseOutput = variantNotice ? `${variantNotice}\n${groupedOutput}` : groupedOutput;
 				const trailingNotes: string[] = [];
 				if (notice) trailingNotes.push(notice);
 				if (clampNotice) trailingNotes.push(clampNotice);

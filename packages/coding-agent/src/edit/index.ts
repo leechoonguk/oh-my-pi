@@ -42,6 +42,8 @@ import {
 	writeFileWithFallback,
 } from "../tools/file-write-fallback";
 import { outputMeta, resolveOutputMaxColumns } from "../tools/output-meta";
+import { findPathVariant, resolveToCwd } from "../tools/path-utils";
+import { cfgToolsRecoverPathVariants } from "../tools/settings";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { DEFAULT_MAX_COLUMN } from "@oh-my-pi/pi-tui/tools/streaming-output";
 import { type EditMode } from "@oh-my-pi/pi-tui/tools/edit";
@@ -519,6 +521,14 @@ export class EditTool implements AgentTool<TInput> {
 		_onUpdate?: AgentToolUpdateCallback<EditToolDetails, TInput>,
 		context?: AgentToolContext,
 	): Promise<AgentToolResult<EditToolDetails, TInput>> {
+		let variantNotice: string | undefined;
+		if (cfgToolsRecoverPathVariants.get(this.session.settings)) {
+			const recovered = await this.#recoverPathVariant(params);
+			if (recovered) {
+				params = recovered.params;
+				variantNotice = recovered.notice;
+			}
+		}
 		let open = this.#sessions.get(toolCallId);
 		const argsJson = JSON.stringify(params);
 		if (open && this.#streamedArgs.get(toolCallId) !== argsJson) {
@@ -559,9 +569,10 @@ export class EditTool implements AgentTool<TInput> {
 			this.#streamedArgs.delete(toolCallId);
 		}
 
+		const outcomeText = variantNotice ? `${variantNotice}\n${outcome.text}` : outcome.text;
 		if (outcome.isError) {
 			return {
-				content: [{ type: "text", text: outcome.text }],
+				content: [{ type: "text", text: outcomeText }],
 				details: { diff: "", errorKind: outcome.errorKind },
 				isError: true,
 			};
@@ -569,7 +580,7 @@ export class EditTool implements AgentTool<TInput> {
 
 		const details = aggregateDetails(outcome.files, this.mode);
 		const result: AgentToolResult<EditToolDetails, TInput> = {
-			content: [{ type: "text", text: outcome.text }],
+			content: [{ type: "text", text: outcomeText }],
 			...(details ? { details } : {}),
 		};
 		const record = createEditBlackboxRecorder(this.session, this.mode, params);
@@ -610,6 +621,38 @@ export class EditTool implements AgentTool<TInput> {
 		}
 		if (notes.length > 0) result.content.push({ type: "text", text: notes.join("\n\n") });
 		return result;
+	}
+
+	/**
+	 * `tools.recoverPathVariants`: a top-level `path` that does not exist but has
+	 * exactly one lexical variant on disk (`omp/x` → `.omp/x`, repeated cwd
+	 * prefix) is rewritten to that variant before the native session opens, and
+	 * the result says so. Payload-embedded paths (patch, apply_patch) are left to
+	 * the native parser.
+	 */
+	async #recoverPathVariant(params: EditParams): Promise<{ params: EditParams; notice: string } | undefined> {
+		const rawPath = (params as { path?: unknown }).path;
+		if (typeof rawPath !== "string" || rawPath.length === 0 || extractUriScheme(rawPath) !== undefined) {
+			return undefined;
+		}
+		let target: string;
+		try {
+			target = resolveToCwd(rawPath, this.session.cwd);
+		} catch {
+			return undefined;
+		}
+		try {
+			await fs.stat(target);
+			return undefined;
+		} catch (error) {
+			if (!isEnoent(error)) return undefined;
+		}
+		const variant = await findPathVariant(rawPath, this.session.cwd);
+		if (!variant) return undefined;
+		return {
+			params: { ...params, path: variant.displayPath } as EditParams,
+			notice: `[Path '${rawPath}' not found; resolved to '${variant.displayPath}' via ${variant.via}]`,
+		};
 	}
 
 	/**

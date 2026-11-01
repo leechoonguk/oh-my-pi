@@ -711,7 +711,7 @@ export function prependSuffixResolutionNotice(
 ): string {
 	if (!suffixResolution || suffixResolution.raw) return text;
 
-	const notice = `[Path '${suffixResolution.from}' not found; resolved to '${suffixResolution.to}' via suffix match]`;
+	const notice = `[Path '${suffixResolution.from}' not found; resolved to '${suffixResolution.to}' via ${suffixResolution.via ?? "suffix match"}]`;
 	return text ? `${notice}\n${text}` : notice;
 }
 /**

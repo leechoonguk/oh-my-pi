@@ -1,7 +1,8 @@
 import * as path from "node:path";
 import { getRemoteDir } from "@oh-my-pi/pi-utils";
 import type { ToolSession } from "../sdk";
-import { findUniqueWorkspaceSuffix } from "./path-utils";
+import { findPathVariant, findUniqueWorkspaceSuffix } from "./path-utils";
+import { cfgToolsRecoverPathVariants } from "./settings";
 
 // Remote mount path prefix (sshfs mounts) - skip fuzzy matching to avoid hangs
 const REMOTE_MOUNT_PREFIX = getRemoteDir() + path.sep;
@@ -14,7 +15,7 @@ export function isNotFoundError(error: unknown): boolean {
 	return code === "ENOENT" || code === "ENOTDIR";
 }
 /** Per-execute memo of suffix-glob lookups; `null` records a confirmed miss. */
-export type SuffixMatchCache = Map<string, { absolutePath: string; displayPath: string } | null>;
+export type SuffixMatchCache = Map<string, { absolutePath: string; displayPath: string; via?: string } | null>;
 /**
  * Memoized {@link findUniqueWorkspaceSuffix} for a single read call. A missing
  * path with archive/sqlite extensions probes the workspace once per stage
@@ -27,10 +28,16 @@ export async function findSuffixMatchCached(
 	cache: SuffixMatchCache,
 	rawPath: string,
 	signal?: AbortSignal,
-): Promise<{ absolutePath: string; displayPath: string } | null> {
+): Promise<{ absolutePath: string; displayPath: string; via?: string } | null> {
 	const hit = cache.get(rawPath);
 	if (hit !== undefined) return hit;
-	const result = await findUniqueWorkspaceSuffix(rawPath, session.cwd, signal);
+	// Lexical variants (`omp/x` → `.omp/x`, repeated cwd prefix) are a few stats
+	// and name the exact file; the suffix glob neither reaches dot directories
+	// nor a path the cwd basename was prepended to. Opt-in: `tools.recoverPathVariants`.
+	const variant = cfgToolsRecoverPathVariants.get(session.settings)
+		? await findPathVariant(rawPath, session.cwd)
+		: null;
+	const result = variant ?? (await findUniqueWorkspaceSuffix(rawPath, session.cwd, signal));
 	cache.set(rawPath, result);
 	return result;
 }
