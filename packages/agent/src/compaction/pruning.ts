@@ -534,6 +534,78 @@ export function pruneSupersededToolResults(
 	return { prunedCount: toPrune.length, tokensSaved, undo: undoAll(steps) };
 }
 
+/** Notice appended to a tool-result body folded by {@link foldToolResultBodies}. */
+export function foldedToolResultNotice(hiddenLines: number): string {
+	return `[… ${hiddenLines} more line${hiddenLines === 1 ? "" : "s"} folded after compaction; re-read if needed]`;
+}
+
+export interface FoldToolResultsConfig {
+	/** First entry of the kept tail (the compaction's `firstKeptEntryId`); the fold starts here. */
+	startEntryId: string;
+	/** The compaction entry itself; the fold stops before it (results after it are live). */
+	endEntryId: string;
+	/** Lines of each text block kept verbatim; the rest collapse into one notice line. */
+	maxLines: number;
+	/** Results these matchers protect are left intact (same matchers as the prune passes). */
+	protectedTools?: readonly ProtectedToolMatcher[];
+}
+
+/**
+ * Fold the bodies of the tool results a compaction kept verbatim
+ * (`keepRecentTokens` tail) down to their first `maxLines` lines. The summary
+ * already covers what those results established, and the tail's own tool
+ * bodies (read output, command output) are most of the first post-compaction
+ * prompt; the assistant turns and user messages around them stay intact so the
+ * conversation shape the model continues from does not change. Runs once per
+ * compaction over `[startEntryId, endEntryId)`, so a later compaction's tail,
+ * which starts after this compaction entry, is never folded twice. Errors,
+ * already-pruned results, image blocks, and protected tools are skipped.
+ */
+export function foldToolResultBodies(
+	entries: readonly SessionEntry[],
+	tokenizer: Tokenizer,
+	config: FoldToolResultsConfig,
+): PruneResult {
+	const maxLines = Math.floor(config.maxLines);
+	if (!Number.isFinite(maxLines) || maxLines <= 0) return NOTHING_PRUNED;
+	const start = entries.findIndex(entry => entry.id === config.startEntryId);
+	const end = entries.findIndex(entry => entry.id === config.endEntryId);
+	if (start < 0 || end < 0 || end <= start) return NOTHING_PRUNED;
+	const protectedTools = config.protectedTools ?? [];
+	const toolCalls = protectedTools.length > 0 ? collectToolCallsById(entries, 0, end) : undefined;
+
+	const steps: Array<() => void> = [];
+	let tokensSaved = 0;
+	for (let i = start; i < end; i++) {
+		const message = getToolResultMessage(entries[i]);
+		if (!message || message.isError || message.prunedAt !== undefined) continue;
+		if (toolCalls && isProtectedToolResult(message, toolCalls.get(message.toolCallId), protectedTools)) continue;
+		let folded = false;
+		const content = message.content.map(block => {
+			if (block.type !== "text") return block;
+			const lines = block.text.split("\n");
+			if (lines.length <= maxLines + 1) return block;
+			folded = true;
+			return {
+				...block,
+				text: `${lines.slice(0, maxLines).join("\n")}\n${foldedToolResultNotice(lines.length - maxLines)}`,
+			};
+		});
+		if (!folded) continue;
+		const before = tokenizer.countMessage(message as AgentMessage);
+		const previousContent = message.content;
+		message.content = content;
+		invalidateMessageCache(message as AgentMessage);
+		tokensSaved += Math.max(0, before - tokenizer.countMessage(message as AgentMessage));
+		steps.push(() => {
+			message.content = previousContent;
+			invalidateMessageCache(message as AgentMessage);
+		});
+	}
+	if (steps.length === 0) return NOTHING_PRUNED;
+	return { prunedCount: steps.length, tokensSaved, undo: undoAll(steps) };
+}
+
 export function pruneToolOutputs(
 	entries: readonly SessionEntry[],
 	tokenizer: Tokenizer,

@@ -285,6 +285,17 @@ export const cfgCompactionKeepRecentTokens = register({
 	default: 20000,
 });
 
+/**
+ * Lines kept per text block of the tool results a compaction retains verbatim
+ * (`keepRecentTokens` tail); `0` keeps them whole. Applied once, at commit, as
+ * a persisted history rewrite like the prune passes.
+ */
+export const cfgCompactionFoldKeptToolResults = register({
+	id: "compaction.foldKeptToolResults",
+	type: "number",
+	default: 0,
+});
+
 export const cfgCompactionAutoContinue = register({ id: "compaction.autoContinue", type: "boolean", default: true });
 
 export const cfgCompactionRemoteEndpoint = register({

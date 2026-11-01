@@ -50,6 +50,7 @@ import {
 } from "@oh-my-pi/pi-agent-core/compaction";
 import {
 	DEFAULT_PRUNE_CONFIG,
+	foldToolResultBodies,
 	type PruneResult,
 	pruneSupersededToolResults,
 	pruneToolOutputs,
@@ -127,6 +128,7 @@ import {
 	cfgCompactionMethodOrder,
 	cfgContextPromotionEnabled,
 	cfgSnapcompactShape,
+	cfgCompactionFoldKeptToolResults,
 } from "./context-settings";
 import { resolveModelCompactionSettings } from "./model-compaction-threshold";
 import { cfgProvidersOpenaiCodexDaybreak, cfgRetry } from "./settings";
@@ -2622,6 +2624,7 @@ export class SessionMaintenance {
 		this.#host.persistEvalStateContext();
 		// A committed compaction starts a new cycle; native compaction gets a fresh try.
 		this.#failedNativeSpeculation = undefined;
+		await this.#foldKeptToolResults(args.firstKeptEntryId, entryId);
 		const newEntries = this.#host.sessionManager.getEntries();
 		const sessionContext = this.#host.buildDisplaySessionContext();
 		this.#host.agent.replaceMessages(sessionContext.messages);
@@ -2657,6 +2660,38 @@ export class SessionMaintenance {
 			}
 		}
 		return savedCompactionEntry;
+	}
+
+	/**
+	 * `compaction.foldKeptToolResults`: right after a compaction commits, fold
+	 * the tool-result bodies inside the kept tail (`firstKeptEntryId` up to the
+	 * new compaction entry) to their first N lines. The summary covers what they
+	 * established, and the provider cache is cold at this point anyway (the
+	 * summary now heads the context), so the rewrite costs no warm prefix.
+	 * Persisted like the prune passes; the display/model context rebuilt by the
+	 * caller picks the folded bodies up. Skipped for provider-native compaction
+	 * (`firstKeptEntryId === ""`), whose tail the provider replays.
+	 */
+	async #foldKeptToolResults(firstKeptEntryId: string, compactionEntryId: string): Promise<void> {
+		const maxLines = cfgCompactionFoldKeptToolResults.get(this.#host.settings);
+		if (!firstKeptEntryId || !Number.isFinite(maxLines) || maxLines <= 0) return;
+		const result = foldToolResultBodies(
+			this.#host.sessionManager.getBranchView(),
+			this.#tokenizer,
+			this.#withPlanProtection({
+				startEntryId: firstKeptEntryId,
+				endEntryId: compactionEntryId,
+				maxLines,
+				protectedTools: [...DEFAULT_PRUNE_CONFIG.protectedTools],
+			}),
+		);
+		if (result.prunedCount === 0) return;
+		await this.#persistPrune(result);
+		logger.debug("Folded kept tool results after compaction", {
+			folded: result.prunedCount,
+			tokensSaved: result.tokensSaved,
+			maxLines,
+		});
 	}
 
 	/**
