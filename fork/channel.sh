@@ -17,7 +17,7 @@ field() { sed -n "s/^$1=//p" "$2"; }
 stamp() {
   local dist=$1 dirty=0
   [ -n "$(git status --porcelain -- packages)" ] && dirty=1
-  { echo "version=$("$dist" --version | awk '{print $NF}')"
+  { echo "version=$("$dist" --version | awk '{print $NF}' | sed 's|.*/||')"
     echo "base=$(git describe --tags --abbrev=0)"
     echo "head=$(git rev-parse HEAD)"
     echo "packages=$(git rev-parse HEAD:packages)"
@@ -34,7 +34,7 @@ check() {
   [ "$(field dirty "$rev")" = 0 ] || die "커밋하지 않은 packages/ 변경으로 빌드됐다 — 커밋 후 make build"
   [ -z "$(git status --porcelain -- packages)" ] || die "packages/ 에 커밋하지 않은 변경이 있다"
   [ "$(field packages "$rev")" = "$(git rev-parse HEAD:packages)" ] || die "빌드 이후 packages/ 가 바뀌었다 — make build"
-  [ "$("$dist" --version | awk '{print $NF}')" = "$(field version "$rev")" ] || die "바이너리 버전이 $rev 와 다르다"
+  [ "$("$dist" --version | awk '{print $NF}' | sed 's|.*/||')" = "$(field version "$rev")" ] || die "바이너리 버전이 $rev 와 다르다"
   echo "build: OK ($(field version "$rev") @ $(git rev-parse --short "$(field head "$rev")"))"
 }
 
@@ -45,7 +45,7 @@ release() {
   if [ -d "$dir" ]; then echo "already released: $name"
   else
     mkdir -p "$ROOT/releases" "$PREFIX/bin"
-    rm -rf "$dir.tmp" && mkdir "$dir.tmp" && cp "$dist" "$dist.rev" "$dir.tmp/" && mv "$dir.tmp" "$dir"
+    rm -rf "$dir.tmp" && mkdir "$dir.tmp" && cp "$dist" "$dist.rev" "$dir.tmp/" && mv "$dir.tmp" "$dir" || die "릴리스 사본을 만들지 못했다: $dir"
   fi
   local cur; cur=$(readlink "$ROOT/current" 2>/dev/null || true)
   if [ "$cur" != "releases/$name" ]; then
