@@ -19,8 +19,15 @@ import { engines, version } from "../package.json" with { type: "json" };
 import { isEnoent, isEnotdir } from "./fs-error";
 import { isBunTestRuntime } from "./test-runtime";
 
-/** App name (e.g. "omp") */
-export const APP_NAME: string = "omp";
+/**
+ * App name (e.g. "omp"). A fork build bakes its own name through the `PI_FORK_APP_NAME` compile define
+ * (see `scripts/compile-binary.ts`) so its CLI and process title never pass for upstream omp.
+ * Unset, it is "omp" — the config directory (`CONFIG_DIR_NAME`) is not affected either way.
+ */
+export const APP_NAME: string = process.env.PI_FORK_APP_NAME || "omp";
+
+/** True for a build that carries a fork app name — self-update would swap it for upstream omp. */
+export const IS_FORK_BUILD: boolean = APP_NAME !== "omp";
 
 /** Public homepage that inference gateways (OpenRouter, Vercel AI Gateway) credit omp traffic to. */
 export const APP_URL: string = "https://omp.sh/";

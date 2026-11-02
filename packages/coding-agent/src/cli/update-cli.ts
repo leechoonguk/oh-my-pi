@@ -18,6 +18,7 @@ import {
 	getProjectDir,
 	isCompiledBinary,
 	isEnoent,
+	IS_FORK_BUILD,
 	VERSION,
 } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
@@ -2288,6 +2289,14 @@ export async function runUpdateCommand(opts: {
 	check: boolean;
 	channel?: UpdateChannel;
 }): Promise<void> {
+	if (IS_FORK_BUILD) {
+		console.log(
+			chalk.yellow(
+				`${APP_NAME} is a fork build of omp ${VERSION}; update it from its source tree, not the omp release channel.`,
+			),
+		);
+		return;
+	}
 	const ompPath = resolveOmpPath();
 	const manager = ompPath ? await managedInstallName(ompPath) : undefined;
 	if (manager) {

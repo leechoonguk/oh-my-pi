@@ -16,6 +16,7 @@ import {
 	getAgentDir,
 	getLogPath,
 	getProjectDir,
+	IS_FORK_BUILD,
 	normalizePathForComparison,
 	setProjectDir,
 	VERSION,
@@ -276,9 +277,9 @@ async function checkForNewVersion(currentVersion: string): Promise<string | unde
 		return;
 	}
 	try {
-		// Checkouts update through git and a manager (Tern) updates its omp itself:
-		// "run omp update" would be wrong advice for both.
-		if (isSourceCheckout() || (await managedInstallName(process.execPath))) return;
+		// Checkouts update through git, a manager (Tern) updates its omp itself and a
+		// fork build updates from its source tree: "run omp update" would be wrong advice for all.
+		if (IS_FORK_BUILD || isSourceCheckout() || (await managedInstallName(process.execPath))) return;
 		const channel = cfgUpdateChannel.get(settings);
 		// A compiled binary updates from the build service; naming the running
 		// version lets the service prepare the patch `omp update` will then use.
