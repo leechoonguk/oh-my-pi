@@ -387,7 +387,7 @@ import {
 	cfgSkills,
 	type SkillsSettings,
 } from "./extensibility/settings";
-import { cfgTtsr } from "./export/ttsr-settings";
+import { cfgRulesOmitListGlobs, cfgTtsr } from "./export/ttsr-settings";
 import { cfgDisabledProviders, cfgEnabledModels, cfgEnabledProviders, cfgModelRoles } from "./config/model-settings";
 import { cfgEditRecoverInlineEdits } from "./edit/settings";
 import { cfgGoalEnabled } from "./goals/settings";
@@ -4365,6 +4365,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				tools: promptTools,
 				toolNames,
 				rules: rulebookRules,
+				omitRuleGlobs: cfgRulesOmitListGlobs.get(settings),
 				alwaysApplyRules,
 				resolvedAppendSystemPrompt: appendPrompt,
 				skillsSettings: cfgSkills.get(settings),

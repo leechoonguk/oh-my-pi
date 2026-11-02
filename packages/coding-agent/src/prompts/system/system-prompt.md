@@ -59,7 +59,7 @@ Matching skill → MUST read `skill://<name>` first.
 {{#if rules.length}}
 <domain-rules>
 {{#each rules}}
-- {{name}} ({{#list globs join=", "}}{{this}}{{/list}}): {{description}}
+{{#if ../omitRuleGlobs}}- {{name}}: {{description}}{{else}}- {{name}} ({{#list globs join=", "}}{{this}}{{/list}}): {{description}}{{/if}}
 {{/each}}
 </domain-rules>
 {{/if}}

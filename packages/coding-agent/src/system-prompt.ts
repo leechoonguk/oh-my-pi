@@ -47,7 +47,12 @@ import { AGENTS_MD_LIMIT, buildWorkspaceTree, type WorkspaceTree } from "./works
 import { combine } from "./config/registry";
 import { cfgBashAutoBackgroundEnabled } from "./exec/settings";
 import { cfgEvalAutoBackgroundEnabled } from "./eval/settings";
-import { cfgTtsrBuiltinRules, cfgTtsrDisabledRules, cfgTtsrEnabled } from "./export/ttsr-settings";
+import {
+	cfgRulesOmitListGlobs,
+	cfgTtsrBuiltinRules,
+	cfgTtsrDisabledRules,
+	cfgTtsrEnabled,
+} from "./export/ttsr-settings";
 import { cfgTuiAutoGraph, cfgTuiReactions, cfgTuiRenderMermaid, cfgTuiRenderSvg } from "./modes/settings";
 import { cfgSecretsEnabled } from "./secrets/settings";
 import { cfgToolsFormat } from "./session/context-settings";
@@ -99,6 +104,7 @@ export const cfgSystemPromptInputs = combine({
 	ttsrEnabled: cfgTtsrEnabled,
 	ttsrBuiltinRules: cfgTtsrBuiltinRules,
 	ttsrDisabledRules: cfgTtsrDisabledRules,
+	rulesOmitListGlobs: cfgRulesOmitListGlobs,
 	secretsEnabled: cfgSecretsEnabled,
 });
 
@@ -545,6 +551,8 @@ export interface BuildSystemPromptOptions {
 	skillDescriptions?: SkillDescriptionCatalog;
 	/** Pre-loaded rulebook rules (descriptions, excluding TTSR and always-apply). */
 	rules?: Array<{ name: string; description?: string; path: string; globs?: string[] }>;
+	/** List rulebook rules by name and description only (`rules.omitListGlobs`). */
+	omitRuleGlobs?: boolean;
 	/** Intent field name injected into every tool schema. If set, explains the field in the prompt. */
 	intentField?: string;
 	/** Encourage the agent to delegate via tasks unless changes are trivial. */
@@ -1005,6 +1013,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		internalUrls: InternalUrlRouter.instance().describe(schemeHost),
 		skills: filteredSkills,
 		rules: rules ?? [],
+		omitRuleGlobs: options.omitRuleGlobs ?? false,
 		alwaysApplyRules: injectedAlwaysApplyRules,
 		cwd: promptCwd,
 		additionalWorkspaceRoots: additionalWorkspaceRoots.filter(d => path.resolve(d) !== path.resolve(resolvedCwd)),

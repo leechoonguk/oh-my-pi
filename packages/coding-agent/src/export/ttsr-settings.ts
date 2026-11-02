@@ -4,6 +4,20 @@
  */
 import { combine, register, type SettingValueOf } from "../config/registry";
 
+// Rulebook
+export const cfgRulesOmitListGlobs = register({
+	id: "rules.omitListGlobs",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "context",
+		group: "Rules (TTSR)",
+		label: "Rulebook Without Globs",
+		description:
+			"List each rulebook rule in the system prompt by name and description only; its globs still decide nothing at runtime, and `rule://<name>` still reads it",
+	},
+});
+
 // TTSR
 export const cfgTtsrEnabled = register({
 	id: "ttsr.enabled",

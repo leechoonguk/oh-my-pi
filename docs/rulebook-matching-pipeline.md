@@ -319,6 +319,8 @@ Always-apply rules are deduped against the effective system/custom/append prompt
 
 Rulebook rules are rendered in a `<domain-rules>` block as `- <name> (<globs>): <description>` lines; the URL list in the prompt documents `rule://<name>` and the workflow section tells the model to read relevant rules first. The custom-prompt template (`custom-system-prompt.md`) instead renders `<rule name="...">` entries with `<glob>` children under an explicit "You MUST read `rule://<name>`" instruction.
 
+`rules.omitListGlobs: true` (default `false`) renders the default template's lines as `- <name>: <description>`. The globs only describe where a rule applies — no runtime path reads them from this list — and a large rulebook spends most of the block on them. The custom-prompt template is unchanged.
+
 This is advisory/contextual: prompt text asks the model to read applicable rules, but code does not enforce glob applicability.
 
 ## 8. `rule://` internal URL behavior
