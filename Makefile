@@ -24,12 +24,13 @@ SANDBOX    ?= $(HOME)/Workspace/local-llm/sandbox
 MODEL      ?= omlx/Qwen3.6-35B-A3B-oQ4e-mtp
 TOOLS      ?= read,bash,edit,write,grep,glob,todo,progress_note
 # 이 포크가 더한 설정 키(전부 기본 off)와 테스트 — 패치를 더하면 두 목록에 같이 적는다(make contract 가 강제).
-FORK_KEYS  := todo.compactResults tools.recoverPathVariants compaction.foldKeptToolResults rules.omitListGlobs
+FORK_KEYS  := todo.compactResults tools.recoverPathVariants compaction.foldKeptToolResults rules.omitListGlobs read.advertiseMultiPath
 FORK_TESTS := packages/coding-agent/test/tools/todo-compact-results.test.ts \
               packages/coding-agent/test/tools/path-variant-recovery.test.ts \
               packages/agent/test/compaction-fold-kept-tool-results.test.ts \
               packages/coding-agent/test/cli/fork-app-name.test.ts \
-              packages/coding-agent/test/rules-omit-list-globs.test.ts
+              packages/coding-agent/test/rules-omit-list-globs.test.ts \
+              packages/coding-agent/test/tools/read-advertise-multi-path.test.ts
 # 빌드 define(설정 키가 아닌 패치 — 값 없이 빌드하면 upstream 동작). APP_NAME 은 포크 바이너리의 앱 이름이다:
 # 사용법 문구·--version 배너·프로세스 제목이 바뀌고(로그 파일 이름은 omp. 그대로) 셀프 업데이트를 거부한다. 설정 루트(~/.omp, 프로젝트 .omp/)는 그대로다.
 FORK_DEFINES := PI_FORK_APP_NAME
