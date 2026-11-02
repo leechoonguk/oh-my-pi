@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 포크 패치 계약 — upstream 태그 위의 커밋 스택이 "옵트인·문서·테스트" 세 가지를 지키는지 본다.
+# 포크 패치 계약 — upstream/main 에 없는 우리 커밋(머지 커밋 제외)이 "옵트인·문서·테스트" 세 가지를 지키는지 본다.
 #  1) packages/ 를 건드린 커밋은 제목에 백틱 키를 달고, 그 키는 FORK_KEYS(설정 키) 또는 FORK_DEFINES(빌드 define)에 있다
 #  2) 그 커밋은 *.test.ts 와 docs/ 를 함께 바꾼다
 #  3) FORK_KEYS 의 키마다 register({ id, … default: false|0 }) — 기본값은 upstream 과 같은 동작이다
@@ -8,10 +8,10 @@
 # usage: fork/contract.sh "<FORK_KEYS>" "<FORK_TESTS>" ["<FORK_DEFINES>"]
 set -uo pipefail
 defines=${3:-}; keys=" $1 $defines "; tests=$2; fail=0
-base=$(git describe --tags --abbrev=0)
+base=${UPSTREAM_REF:-upstream/main}
 err() { echo "FAIL: $*"; fail=1; }
 
-for c in $(git rev-list --reverse "$base"..HEAD); do
+for c in $(git rev-list --reverse --no-merges "$base"..HEAD); do
   files=$(git diff-tree --no-commit-id --name-only -r "$c")
   grep -q '^packages/' <<<"$files" || continue
   subj=$(git log -1 --format=%s "$c"); short=$(git rev-parse --short "$c")
@@ -33,5 +33,5 @@ for d in $defines; do
 done
 
 for t in $tests; do [ -f "$t" ] || err "FORK_TESTS: $t 없음"; done
-[ $fail = 0 ] && echo "contract: OK ($base + $(git rev-list --count "$base"..HEAD) commits, keys: $1${defines:+, defines: $defines})"
+[ $fail = 0 ] && echo "contract: OK ($(git rev-list --count --no-merges "$base"..HEAD) fork commits over $base, keys: $1${defines:+, defines: $defines})"
 exit $fail
