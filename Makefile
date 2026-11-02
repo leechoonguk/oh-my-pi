@@ -13,6 +13,8 @@ ARCH       := darwin-arm64
 NATIVE_PKG := @oh-my-pi/pi-natives-$(ARCH)
 NATIVE_DST := packages/natives/native/pi_natives.$(ARCH).node
 DIST       := packages/coding-agent/dist/omp
+# 빌드가 다시 쓰는 추적 파일(번들 해시) — 바이너리에 이미 실렸으니 빌드 뒤 되돌려 출처의 dirty 를 빌드 전 상태로 둔다.
+GENERATED  := packages/coding-agent/src/export/html/viewer.generated.json
 UPSTREAM   := upstream
 BRANCH     := $(shell git rev-parse --abbrev-ref HEAD)
 BASE       := $(shell git describe --tags --abbrev=0 2>/dev/null)
@@ -47,6 +49,7 @@ natives: ## 네이티브 애드온 — Rust 빌드 대신 같은 버전의 npm �
 build: natives ## 단일 바이너리 빌드 → $(DIST) + 출처 $(DIST).rev, 루트 dist/ 심링크(이 바이너리로 도는 프로세스가 있으면 거부)
 	@! pgrep -f "^($(CURDIR)/)?(dist/|$(dir $(DIST)))omp( |$$)" >/dev/null || { echo "FAIL: $(DIST) 로 도는 omp 가 있다 — 끝난 뒤 빌드(설치 채널은 사본이라 무관)"; exit 1; }
 	cd packages/coding-agent && $(BUN) scripts/build-binary.ts
+	@git checkout -- $(GENERATED)
 	@fork/channel.sh stamp $(DIST)
 	@mkdir -p dist && ln -sfn ../$(DIST) dist/omp && ln -sfn ../$(DIST).rev dist/omp.rev
 

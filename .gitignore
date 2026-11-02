@@ -103,3 +103,4 @@ packages/coding-agent/bench/boot-baseline.json
 # 포크 관리(Makefile): 저장소 안 bun 과 루트 바이너리 심링크
 .bun-local/
 /dist/
+packages/natives/native/*.version
