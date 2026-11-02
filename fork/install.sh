@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 포크 바이너리 설치 — 지금 HEAD 소스로 빌드한 dist 를 앱 이름(APP_NAME, 기본 ompx) 하나로 설치한다. 버전별 사본은 두지 않는다
 # (되돌리기는 git 으로: 원하는 커밋에서 다시 빌드·설치). 설치판 omp(~/.bun/bin/omp)는 건드리지 않는다.
-#   $PREFIX/share/$APP_NAME/{omp,omp.rev}   $PREFIX/bin/$APP_NAME -> ../share/$APP_NAME/omp
-# omp.rev 는 빌드가 남긴 출처(앱 이름·버전·HEAD·upstream 머지 지점·packages/ 트리 해시·dirty)다 — 바이너리에 들어가는 것은
+#   $PREFIX/share/$APP_NAME/{$APP_NAME,$APP_NAME.rev}   $PREFIX/bin/$APP_NAME -> ../share/$APP_NAME/$APP_NAME
+# <앱 이름>.rev 는 빌드가 남긴 출처(앱 이름·버전·HEAD·upstream 머지 지점·packages/ 트리 해시·dirty)다 — 바이너리에 들어가는 것은
 # packages/ 뿐이라 트리 해시가 같으면 Makefile·fork/ 만 바뀐 커밋에서도 같은 빌드로 본다.
 # 교체는 tmp 복사 후 mv(새 inode) — 도는 셀은 옛 inode 를 쥐고 끝까지 간다.
 # usage: fork/install.sh stamp <dist> | check <dist> | install <dist> | installed
@@ -47,9 +47,9 @@ check() {
 install() {
   local dist=$1; check "$dist" >/dev/null
   mkdir -p "$ROOT" "$PREFIX/bin"
-  cp "$dist" "$ROOT/omp.tmp" && cp "$dist.rev" "$ROOT/omp.rev.tmp" && mv -f "$ROOT/omp.tmp" "$ROOT/omp" && mv -f "$ROOT/omp.rev.tmp" "$ROOT/omp.rev" \
+  cp "$dist" "$ROOT/$APP.tmp" && cp "$dist.rev" "$ROOT/$APP.rev.tmp" && mv -f "$ROOT/$APP.tmp" "$ROOT/$APP" && mv -f "$ROOT/$APP.rev.tmp" "$ROOT/$APP.rev" \
     || die "설치 사본을 만들지 못했다: $ROOT"
-  ln -sfn "../share/$APP/omp" "$LINK"
+  ln -sfn "../share/$APP/$APP" "$LINK"
   installed
 }
 
@@ -57,7 +57,7 @@ installed() {
   [ -L "$LINK" ] || die "$LINK 없음 — make install"
   echo "link:    $LINK -> $(readlink "$LINK")"
   echo "version: $("$LINK" --version)"
-  sed 's/^/rev:     /' "$ROOT/omp.rev"
+  sed 's/^/rev:     /' "$ROOT/$APP.rev"
 }
 
 cmd=${1:-}; shift || true
