@@ -762,6 +762,7 @@ read:
 | `edit.autoRepair.enabled` | boolean | `false`    | Ask the `smol` model to repair an introduced AST parse regression; accept only a reparsed repair, otherwise warn. |
 | `edit.blackbox.enabled`   | boolean | `false`    | Append full source for AST parse regressions.                                                                     |
 | `read.defaultLimit`       | number  | `300`      | Default line count for `read` without a selector.                                                                 |
+| `read.advertiseMultiPath` | boolean | `false` | Add one line to the `read` tool description: a `;`-joined path reads several files in one call, each part with its own selector. The split itself is upstream behavior; this only says so. |
 | `tools.recoverPathVariants` | boolean | `false`  | When a `read`/`glob`/`edit` path is missing, resolve the dot-directory spelling (`omp/x` → `.omp/x`) or drop a repeated cwd prefix (`sandbox/x` from inside `sandbox/`), only when exactly one variant exists; the result's first line says so. |
 | `read.summarize.enabled`  | boolean | `true`     | Structural summaries for code reads.                                                                              |
 | `read.summarize.prose`    | boolean | `false`    | Summarize prose files too.                                                                                        |

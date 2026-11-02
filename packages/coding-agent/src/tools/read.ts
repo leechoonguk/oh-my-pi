@@ -186,6 +186,7 @@ import { toolResult } from "./tool-result";
 
 import {
 	cfgFetchEnabled,
+	cfgReadAdvertiseMultiPath,
 	cfgReadDefaultLimit,
 	cfgReadRenderMarkdown,
 	cfgReadSummarizeEnabled,
@@ -1065,6 +1066,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		return prompt.render(readDescription, {
 			IS_HL_MODE: resolveFileDisplayMode(this.session).hashLines,
 			BINARY_VIEWS: cfgIdaAvailable.get(this.session.settings),
+			MULTI_PATH: cfgReadAdvertiseMultiPath.get(this.session.settings),
 		});
 	}
 	readonly parameters = readSchema;

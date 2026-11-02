@@ -176,6 +176,19 @@ export const cfgReadDefaultLimit = register({
 	},
 });
 
+export const cfgReadAdvertiseMultiPath = register({
+	id: "read.advertiseMultiPath",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "files",
+		group: "Reading",
+		label: "Advertise Multi-Path Reads",
+		description:
+			"Tell the model in the read tool description that one call reads several files when their paths are joined with `;` (each part keeps its own selector)",
+	},
+});
+
 export const cfgToolsRecoverPathVariants = register({
 	id: "tools.recoverPathVariants",
 	type: "boolean",
