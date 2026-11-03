@@ -182,6 +182,7 @@ import { parseSqlitePathCandidates } from "./sqlite-reader";
 import { formatBytes, shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
 import { ToolAbortError, throwIfAborted } from "./tool-errors";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { applyReadDedupe } from "./read-dedupe";
 import { toolResult } from "./tool-result";
 
 import {
@@ -838,6 +839,9 @@ function readDetailsLinkPath(details: ReadToolDetails | undefined): string | nul
 	return source?.type === "path" && typeof source.value === "string" ? source.value : null;
 }
 
+/** Tool call id of each part of a `;` read (nested `execute`, not a call of its own). */
+const DELIMITED_PART_CALL_ID = "read-delimited-part";
+
 /** Identical reads tolerated before the loop hint is appended. */
 const REPEAT_READ_HINT_THRESHOLD = 3;
 /** Per-session cap on tracked read keys; the map resets when exceeded. */
@@ -1201,6 +1205,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 					getEditStore(this.session).recordSnapshot(staged.absolutePath, snapshotText, seenLines);
 				}
 			}
+			this.#dedupe(context.toolCall.id, staged?.path ?? (context.args as ReadParams).path, result);
 			appendRepeatReadHint(this.session, staged?.path ?? (context.args as ReadParams).path, result);
 			return await postProcessToolResult(result, this.name, this.session as unknown as AgentToolContext);
 		} finally {
@@ -1269,7 +1274,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 
 		for (const part of parts) {
 			try {
-				const result = await this.execute("read-delimited-part", { path: part }, signal, undefined, toolContext);
+				const result = await this.execute(DELIMITED_PART_CALL_ID, { path: part }, signal, undefined, toolContext);
 				const nestedTargets = result.details?.displayReadTargets;
 				if (nestedTargets?.length) {
 					const nestedLinks = result.details?.displayReadTargetLinks;
@@ -1752,8 +1757,17 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		const result = await this.#executeInner(toolCallId, params, signal, onUpdate, toolContext);
 		const displayTarget = InternalUrlRouter.instance().locateSync(params.path);
 		if (displayTarget && result.details) result.details.displayTarget = displayTarget;
+		this.#dedupe(toolCallId, params.path, result);
 		appendRepeatReadHint(this.session, params.path, result);
 		return result;
+	}
+
+	/** `read.dedupeUnchanged` — a top-level, single-file read only (`;` parts and lists are skipped). */
+	#dedupe(toolCallId: string, readPath: string, result: AgentToolResult<ReadToolDetails>): void {
+		if (toolCallId === DELIMITED_PART_CALL_ID || result.details?.displayReadTargets?.length) return;
+		const resolved = readDetailsLinkPath(result.details) ?? undefined;
+		const display = resolved ? formatPathRelativeToCwd(resolved, this.session.cwd) : readPath;
+		applyReadDedupe(this.session, toolCallId, resolved, splitPathAndSel(readPath).sel, display, result);
 	}
 
 	async #executeInner(

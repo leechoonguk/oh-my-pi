@@ -554,6 +554,9 @@ export interface ToolSession {
 	bumpFileMutationVersion?(path: string): number;
 	/** Read the current session-global mutation counter for `path` (0 if never mutated). */
 	getFileMutationVersion?(path: string): number;
+	/** Whether the tool result of `toolCallId` is still in the live agent context and not
+	 *  pruned in place (`prunedAt`). `read.dedupeUnchanged` stubs a re-read only when it is. */
+	isToolResultInContext?(toolCallId: string): boolean;
 	/** Get the active OpenTelemetry config so subagent dispatch can forward
 	 *  the parent's tracer/hooks with the subagent's own identity stamped. */
 	getTelemetry?: () => AgentTelemetryConfig | undefined;

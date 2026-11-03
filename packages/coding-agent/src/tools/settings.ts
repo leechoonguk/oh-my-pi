@@ -189,6 +189,19 @@ export const cfgReadAdvertiseMultiPath = register({
 	},
 });
 
+export const cfgReadDedupeUnchanged = register({
+	id: "read.dedupeUnchanged",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "files",
+		group: "Reading",
+		label: "Dedupe Unchanged Re-Reads",
+		description:
+			"Answer a re-read of the same file and selector with a one-line stub while the file is unchanged and the earlier result is still in context (reset on compaction)",
+	},
+});
+
 export const cfgToolsRecoverPathVariants = register({
 	id: "tools.recoverPathVariants",
 	type: "boolean",

@@ -349,6 +349,7 @@ import {
 	cfgToolsXdevInlineDevices,
 	cfgSessionToolGates,
 } from "./tools/settings";
+import { resetReadDedupe } from "./tools/read-dedupe";
 import { cfgToolsFormat } from "./session/context-settings";
 import { cfgAutolearnEnabled } from "./autolearn/settings";
 import { cfgBrowserEnabled } from "./tools/browser/settings";
@@ -2681,6 +2682,12 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				return next;
 			},
 			getFileMutationVersion: path => fileMutationVersions.get(path) ?? 0,
+			isToolResultInContext: toolCallId =>
+				hasSession &&
+				session.agent.state.messages.some(
+					message =>
+						message.role === "toolResult" && message.toolCallId === toolCallId && message.prunedAt === undefined,
+				),
 			getTodoPhases: () => session.getTodoPhases(),
 			setTodoPhases: phases => session.setTodoPhases(phases),
 			persistTodoPhases: phases => sessionManager.appendCustomEntry(USER_TODO_EDIT_CUSTOM_TYPE, { phases }),
@@ -5182,6 +5189,14 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		// after a reset (#13370). The tools snapshot into THIS store, not the
 		// AgentSession's own lazy field.
 		session.registerSessionChangeCallback(() => toolSession.editStore?.clear());
+		// `read.dedupeUnchanged`: after a compaction (or a session switch) the earlier read
+		// results are summarized or folded away, so a re-read must return the content again.
+		session.registerSessionChangeCallback(() => resetReadDedupe(toolSession));
+		session.subscribe(event => {
+			if (event.type === "auto_compaction_end" || event.type === "manual_compaction_end") {
+				resetReadDedupe(toolSession);
+			}
+		});
 		if (ownedSkillDescriptionStore) {
 			// Let in-flight compressions land before releasing the file.
 			session.addDisposer(
